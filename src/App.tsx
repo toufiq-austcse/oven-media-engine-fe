@@ -19,18 +19,21 @@ interface OvenLiveKitInstance {
     attachMedia: (element: HTMLVideoElement) => void;
     getUserMedia: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
     startStreaming: (endpoint: string, options?: { httpHeaders?: Record<string, string> }) => Promise<void>;
-    stopStreaming: () => void;
+    stopStreaming: () => Promise<void>;
 }
 
 function App() {
     const [isStreaming, setIsStreaming] = useState(false);
     const [isRtmpStreaming, setIsRtmpStreaming] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [whipEndpoint, setWhipEndpoint] = useState(import.meta.env.VITE_WHIP_ENDPOINT || 'http://188.166.217.2:3333/app/stream?direction=whip');
-    const [rtmpEndpoint, setRtmpEndpoint] = useState(import.meta.env.VITE_RTMP_ENDPOINT || 'rtmp://188.166.217.2:1935/app/stream');
+    // eslint-disable-next-line no-constant-binary-expression
+    const [whipEndpoint, setWhipEndpoint] = useState(`${import.meta.env.VITE_OME_SERVER_API_BASE_URL}/app/${Date.now()}?direction=whip` || 'http://localhost:3333/app/stream?direction=whip');
+    const [rtmpEndpoint, setRtmpEndpoint] = useState(import.meta.env.VITE_RTMP_ENDPOINT || 'rtmp://localhost:1935/app/stream');
     const videoRef = useRef<HTMLVideoElement>(null);
+    const [streamId, setStreamId] = useState<string>('');
     const ovenLiveKitRef = useRef<OvenLiveKitInstance | null>(null);
     const mediaStreamRef = useRef<MediaStream | null>(null);
+    const [externalId] = useState<string>(`user_${Math.floor(Math.random() * 10000)}`);
 
 
     useEffect(() => {
@@ -56,6 +59,19 @@ function App() {
                 throw new Error('OvenLiveKit not initialized');
             }
 
+            // Call API to create OME session and get WHIP URL
+            const response = await axios.post(`${import.meta.env.VITE_OME_SERVER_API_BASE_URL}/ome/create`, {
+                external_id: externalId
+            }, {
+                headers: {
+                    'Authorization': AUTH_TOKEN
+                }
+            });
+
+            const whipUrl = response.data.data.whip_url;
+            setWhipEndpoint(whipUrl);
+            setStreamId(response.data.data._id)
+
             // Get user media (camera and microphone)
             const stream = await ovenLiveKitRef.current.getUserMedia({
                 audio: true,
@@ -69,7 +85,7 @@ function App() {
             mediaStreamRef.current = stream;
 
             // Start streaming to OvenMediaEngine via WHIP
-            await ovenLiveKitRef.current.startStreaming(whipEndpoint, {
+            await ovenLiveKitRef.current.startStreaming(whipUrl, {
                 httpHeaders: {
                     'Authorization': AUTH_TOKEN
                 }
@@ -98,13 +114,10 @@ function App() {
     const startRtmpStream = async () => {
         try {
             const apiUrl = API_BASE_URL.replace(/:\d+$/, `:${API_PORT}`);
-            const response = await axios.post(`${apiUrl}/v1/vhosts/default/apps/app:startPush`, {
-                "id": "push_2",
-                "stream": {
-                    "name": "stream_rtmp"
-                },
-                "protocol": "rtmp",
-                "url": rtmpEndpoint
+            console.log('apiUrl', apiUrl);
+            const response = await axios.post(`${import.meta.env.VITE_OME_SERVER_API_BASE_URL}/ome/startPush`, {
+                "stream_id": streamId,
+                "rtmp_url": rtmpEndpoint
             }, {
                 headers: {
                     'Content-Type': 'application/json',
@@ -124,9 +137,8 @@ function App() {
 
     const stopRtmpStream = async () => {
         try {
-            const apiUrl = API_BASE_URL.replace(/:\d+$/, `:${API_PORT}`);
-            const response = await axios.post(`${apiUrl}/v1/vhosts/default/apps/app:stopPush`, {
-                    "id": "push_2"
+            const response = await axios.post(`${import.meta.env.VITE_OME_SERVER_API_BASE_URL}/ome/stopPush`, {
+                    "stream_id": streamId,
                 }
                 , {
                     headers: {
