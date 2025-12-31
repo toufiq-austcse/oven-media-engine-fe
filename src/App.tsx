@@ -60,7 +60,7 @@ function App() {
             }
 
             // Call API to create OME session and get WHIP URL
-            const response = await axios.post(`${import.meta.env.VITE_OME_SERVER_API_BASE_URL}/ome/create`, {
+            const response = await axios.post(`${import.meta.env.VITE_OME_SERVER_API_BASE_URL}/ome/streams`, {
                 external_id: externalId
             }, {
                 headers: {
@@ -68,9 +68,12 @@ function App() {
                 }
             });
 
-            const whipUrl = response.data.data.whip_url;
-            setWhipEndpoint(whipUrl);
-            setStreamId(response.data.data._id)
+            if (!whipEndpoint) {
+                const whipUrl = response.data.data.whip_url;
+                setWhipEndpoint(whipUrl);
+                setStreamId(response.data.data._id)
+            }
+
 
             // Get user media (camera and microphone)
             const stream = await ovenLiveKitRef.current.getUserMedia({
@@ -85,7 +88,7 @@ function App() {
             mediaStreamRef.current = stream;
 
             // Start streaming to OvenMediaEngine via WHIP
-            await ovenLiveKitRef.current.startStreaming(whipUrl, {
+            await ovenLiveKitRef.current.startStreaming(whipEndpoint, {
                 httpHeaders: {
                     'Authorization': AUTH_TOKEN
                 }
@@ -115,7 +118,7 @@ function App() {
         try {
             const apiUrl = API_BASE_URL.replace(/:\d+$/, `:${API_PORT}`);
             console.log('apiUrl', apiUrl);
-            const response = await axios.post(`${import.meta.env.VITE_OME_SERVER_API_BASE_URL}/ome/startPush`, {
+            const response = await axios.post(`${import.meta.env.VITE_OME_SERVER_API_BASE_URL}/ome/start-push`, {
                 "stream_id": streamId,
                 "rtmp_url": rtmpEndpoint
             }, {
@@ -137,7 +140,7 @@ function App() {
 
     const stopRtmpStream = async () => {
         try {
-            const response = await axios.post(`${import.meta.env.VITE_OME_SERVER_API_BASE_URL}/ome/stopPush`, {
+            const response = await axios.post(`${import.meta.env.VITE_OME_SERVER_API_BASE_URL}/ome/stop-push`, {
                     "stream_id": streamId,
                 }
                 , {
