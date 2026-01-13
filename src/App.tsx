@@ -71,7 +71,7 @@ function App() {
             if (!whipEndpoint) {
                 const whipUrl = response.data.data.whip_url;
                 setWhipEndpoint(whipUrl);
-                setStreamId(response.data.data._id)
+                // Parse stream ID from whip_url (e.g., https://stream.vdiotouch.com/app/6966928c386608416d220fb6?direction=whip)
             }
 
 
@@ -93,6 +93,11 @@ function App() {
                     'Authorization': AUTH_TOKEN
                 }
             });
+
+            const streamIdMatch = whipEndpoint.match(/\/app\/([^?]+)/);
+            const parsedStreamId = streamIdMatch ? streamIdMatch[1] : ''
+            console.log('parsedStreamId ',parsedStreamId)
+            setStreamId(parsedStreamId);
 
             setIsStreaming(true);
         } catch (err) {
